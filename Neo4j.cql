@@ -188,3 +188,8 @@ RETURN ct.name AS City,
        (idx + 1) AS Rank, 
        city_ranking[idx].name AS Courier, 
        city_ranking[idx].total AS Orders_Done;
+
+MATCH (cr:Courier)-[:OPERATES_IN]->(ct:City)<-[:LIVES_IN]-(c:Customer)-[:PLACED]->(:Order)-[:DELIVERED_BY]->(cr)
+WITH cr.courier_id AS CourierID, COUNT(*) AS OrdersCount
+ORDER BY OrdersCount DESC
+RETURN CourierID, OrdersCount;
