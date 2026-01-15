@@ -1,0 +1,393 @@
+services:
+  zookeeper:
+    image: bitnamilegacy/zookeeper:3.7.0
+    container_name: clearml-serving-zookeeper
+    # ports:
+      # - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - backend
+
+  kafka:
+    image: bitnamilegacy/kafka:3.1.1
+    container_name: clearml-serving-kafka
+    # ports:
+      # - "9092:9092"
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://clearml-serving-kafka:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://clearml-serving-kafka:9092
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=clearml-serving-zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CREATE_TOPICS="topic_test:1:1"
+    depends_on:
+      - zookeeper
+    networks:
+      - backend
+
+  prometheus:
+    image: prom/prometheus:v2.34.0
+    container_name: clearml-serving-prometheus
+    volumes:
+      - ./prometheus.yml:/prometheus.yml
+    command:
+      - '--config.file=/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    # ports:
+      # - "9090:9090"
+    depends_on:
+      - clearml-serving-statistics
+    networks:
+      - backend
+
+  alertmanager:
+    image: prom/alertmanager:v0.23.0
+    container_name: clearml-serving-alertmanager
+    restart: unless-stopped
+    # ports:
+      # - "9093:9093"
+    depends_on:
+      - prometheus
+      - grafana
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:8.4.4-ubuntu
+    container_name: clearml-serving-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "ClearML"
+#      GF_INSTALL_PLUGINS: "allegroai-clearml-datasource"
+      GF_INSTALL_PLUGINS_FORCE: "true"
+    volumes:
+      - ./datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - backend
+
+
+  clearml-serving-inference:
+#    image: clearml/clearml-serving-inference-intel:latest
+    image: allegroai/clearml-serving-triton:1.2.0-22.07
+    container_name: clearml-serving-inference
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      CLEARML_WEB_HOST: ${CLEARML_WEB_HOST:-https://app.clear.ml}
+      CLEARML_API_HOST: ${CLEARML_API_HOST:-https://api.clear.ml}
+      CLEARML_FILES_HOST: ${CLEARML_FILES_HOST:-https://files.clear.ml}
+      CLEARML_API_ACCESS_KEY: ${CLEARML_API_ACCESS_KEY}
+      CLEARML_API_SECRET_KEY: ${CLEARML_API_SECRET_KEY}
+      CLEARML_SERVING_TASK_ID: ${CLEARML_SERVING_TASK_ID:-}
+      CLEARML_SERVING_PORT: ${CLEARML_SERVING_PORT:-8080}
+      CLEARML_SERVING_POLL_FREQ: ${CLEARML_SERVING_POLL_FREQ:-1.0}
+      CLEARML_DEFAULT_BASE_SERVE_URL: ${CLEARML_DEFAULT_BASE_SERVE_URL:-http://clearml-serving-inference:8080/serve}
+      CLEARML_DEFAULT_KAFKA_SERVE_URL: ${CLEARML_DEFAULT_KAFKA_SERVE_URL:-clearml-serving-kafka:9092}
+      CLEARML_DEFAULT_TRITON_GRPC_ADDR: ${CLEARML_DEFAULT_TRITON_GRPC_ADDR:-clearml-serving-triton:8001}
+      CLEARML_USE_GUNICORN: ${CLEARML_USE_GUNICORN:-}
+      CLEARML_SERVING_NUM_PROCESS: ${CLEARML_SERVING_NUM_PROCESS:-}
+      CLEARML_EXTRA_PYTHON_PACKAGES: ${CLEARML_EXTRA_PYTHON_PACKAGES:-}
+      CLEARML_SERVING_REPORT_STATISTICS: "true"
+      CLEARML_SERVING_STATISTICS_SERVICE_URL: "http://clearml-serving-statistics:9999"
+    depends_on:
+      - kafka
+      - clearml-serving-triton
+    networks:
+      - backend
+
+  clearml-serving-triton:
+    image: allegroai/clearml-serving-triton:1.2.0-22.07
+#    image: clearml/clearml-serving-triton:latest
+#    image: allegroai/clearml-serving-triton:1.3.2
+    container_name: clearml-serving-triton
+    restart: unless-stopped
+    # ports:
+      # - "8001:8001"
+    environment:
+      CLEARML_WEB_HOST: ${CLEARML_WEB_HOST:-https://app.clear.ml}
+      CLEARML_API_HOST: ${CLEARML_API_HOST:-https://api.clear.ml}
+      CLEARML_FILES_HOST: ${CLEARML_FILES_HOST:-https://files.clear.ml}
+      CLEARML_API_ACCESS_KEY: ${CLEARML_API_ACCESS_KEY}
+      CLEARML_API_SECRET_KEY: ${CLEARML_API_SECRET_KEY}
+      CLEARML_SERVING_TASK_ID: ${CLEARML_SERVING_TASK_ID:-}
+      CLEARML_TRITON_POLL_FREQ: ${CLEARML_TRITON_POLL_FREQ:-1.0}
+      CLEARML_TRITON_METRIC_FREQ: ${CLEARML_TRITON_METRIC_FREQ:-1.0}
+      CLEARML_EXTRA_PYTHON_PACKAGES: ${CLEARML_EXTRA_PYTHON_PACKAGES:-}
+    depends_on:
+      - kafka
+    networks:
+      - backend
+    # optimize perforamnce
+    security_opt:
+      - seccomp:unconfined
+
+  clearml-serving-statistics:
+    image: allegroai/clearml-serving-statistics:latest
+#    image: clearml/clearml-serving-statistics:latest
+    container_name: clearml-serving-statistics
+    restart: unless-stopped
+    # ports:
+      # - "9999:9999"
+    environment:
+      CLEARML_WEB_HOST: ${CLEARML_WEB_HOST:-https://app.clear.ml}
+      CLEARML_API_HOST: ${CLEARML_API_HOST:-https://api.clear.ml}
+      CLEARML_FILES_HOST: ${CLEARML_FILES_HOST:-https://files.clear.ml}
+      CLEARML_API_ACCESS_KEY: ${CLEARML_API_ACCESS_KEY}
+      CLEARML_API_SECRET_KEY: ${CLEARML_API_SECRET_KEY}
+      CLEARML_SERVING_TASK_ID: ${CLEARML_SERVING_TASK_ID:-}
+      CLEARML_DEFAULT_KAFKA_SERVE_URL: ${CLEARML_DEFAULT_KAFKA_SERVE_URL:-clearml-serving-kafka:9092}
+      CLEARML_SERVING_POLL_FREQ: ${CLEARML_SERVING_POLL_FREQ:-1.0}
+    depends_on:
+      - kafka
+    networks:
+      - backend
+    # optimize perforamnce
+    security_opt:
+      - seccomp:unconfined
+
+#name: clearml
+#services:
+
+  apiserver:
+    hostname: apiserver
+    command:
+    - apiserver
+    container_name: clearml-apiserver
+    image: allegroai/clearml:2.0.0
+    restart: unless-stopped
+    volumes:
+    - logs:/var/log/clearml
+    - ./clearml_config:/opt/clearml/config
+    - data_fileserver:/mnt/fileserver
+    depends_on:
+      - redis
+      - mongo
+      - elasticsearch
+      - fileserver
+    environment:
+      CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
+      CLEARML_ELASTIC_SERVICE_PORT: 9200
+      CLEARML_MONGODB_SERVICE_HOST: mongo
+      CLEARML_MONGODB_SERVICE_PORT: 27017
+      CLEARML_REDIS_SERVICE_HOST: redis
+      CLEARML_REDIS_SERVICE_PORT: 6379
+      CLEARML_SERVER_DEPLOYMENT_TYPE: linux
+      CLEARML__apiserver__pre_populate__enabled: "true"
+      CLEARML__apiserver__pre_populate__zip_files: "/opt/clearml/db-pre-populate"
+      CLEARML__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
+      CLEARML__services__async_urls_delete__enabled: "true"
+      CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[${CLEARML_FILES_HOST:-}]"
+      CLEARML__secure__credentials__services_agent__user_key: ${CLEARML_AGENT_ACCESS_KEY:-}
+      CLEARML__secure__credentials__services_agent__user_secret: ${CLEARML_AGENT_SECRET_KEY:-}
+    ports:
+      - "8008:8008"
+    networks:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/debug.ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # может долго инициализироваться в первый раз
+
+  elasticsearch:
+    networks:
+      - backend
+    container_name: clearml-elastic
+    environment:
+      bootstrap.memory_lock: "true"
+      cluster.name: clearml
+      cluster.routing.allocation.node_initial_primaries_recoveries: "500"
+      cluster.routing.allocation.disk.watermark.low: 500mb
+      cluster.routing.allocation.disk.watermark.high: 500mb
+      cluster.routing.allocation.disk.watermark.flood_stage: 500mb
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      discovery.type: "single-node"
+      http.compression_level: "7"
+      node.name: clearml
+      reindex.remote.whitelist: "'*.*'"
+      xpack.security.enabled: "false"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    image: elasticsearch:8.17.0
+    restart: unless-stopped
+    volumes:
+      - data_elastic_7:/usr/share/elasticsearch/data
+      - /usr/share/elasticsearch/logs
+
+  fileserver:
+    hostname: fileserver
+    networks:
+      - backend
+      - frontend
+    command:
+    - fileserver
+    container_name: clearml-fileserver
+    image: allegroai/clearml:2.0.0
+    environment:
+      CLEARML__fileserver__delete__allow_batch: "true"
+    restart: unless-stopped
+    volumes:
+    - logs:/var/log/clearml
+    - data_fileserver:/mnt/fileserver
+    - ./clearml_config:/opt/clearml/config
+    ports:
+      - "8081:8081"
+
+  mongo:
+    networks:
+      - backend
+    container_name: clearml-mongo
+    image: mongo:6.0.19
+    restart: unless-stopped
+    command: --setParameter internalQueryMaxBlockingSortMemoryUsageBytes=196100200
+    volumes:
+    - mongo_db:/data/db
+    - mongo_configdb:/data/configdb
+
+  redis:
+    networks:
+      - backend
+    container_name: clearml-redis
+    image: redis:6.2
+    restart: unless-stopped
+    volumes:
+    - data_redis:/data
+
+  webserver:
+    hostname: webserver
+    command:
+    - webserver
+    container_name: clearml-webserver
+    # environment:
+    #  CLEARML_SERVER_SUB_PATH : clearml-web # Allow Clearml to be served with a URL path prefix.
+    image: allegroai/clearml:2.0.0
+    restart: unless-stopped
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    ports:
+    - "8888:80"
+    networks:
+      - backend
+      - frontend
+
+  async_delete:
+    depends_on:
+      - apiserver
+      - redis
+      - mongo
+      - elasticsearch
+      - fileserver
+    container_name: async_delete
+    image: allegroai/clearml:2.0.0
+    networks:
+      - backend
+    restart: unless-stopped
+    environment:
+      CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
+      CLEARML_ELASTIC_SERVICE_PORT: 9200
+      CLEARML_MONGODB_SERVICE_HOST: mongo
+      CLEARML_MONGODB_SERVICE_PORT: 27017
+      CLEARML_REDIS_SERVICE_HOST: redis
+      CLEARML_REDIS_SERVICE_PORT: 6379
+      PYTHONPATH: /opt/clearml/apiserver
+      CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[${CLEARML_FILES_HOST:-}]"
+    entrypoint:
+      - python3
+      - -m
+      - jobs.async_urls_delete
+      - --fileserver-host
+      - http://fileserver:8081
+    volumes:
+      - logs:/var/log/clearml
+      - ./clearml_config:/opt/clearml/config
+
+  agent-services:
+    networks:
+      - backend
+    container_name: clearml-agent-services
+    image: allegroai/clearml-agent-services:services-1.3.0-80
+    deploy:
+      restart_policy:
+        condition: on-failure
+    privileged: true
+    environment:
+      CLEARML_HOST_IP: ${CLEARML_HOST_IP:-127.0.0.1}
+      CLEARML_WEB_HOST: ${CLEARML_WEB_HOST:-http://webserver:80}
+      CLEARML_API_HOST: ${CLEARML_API_HOST:-http://apiserver:8008}
+      CLEARML_FILES_HOST: ${CLEARML_FILES_HOST:-http://fileserver:8081}
+      CLEARML_API_ACCESS_KEY: ${CLEARML_AGENT_ACCESS_KEY}
+      CLEARML_API_SECRET_KEY: ${CLEARML_AGENT_SECRET_KEY}
+      CLEARML_AGENT_GIT_USER: ${CLEARML_AGENT_GIT_USER}
+      CLEARML_AGENT_GIT_PASS: ${CLEARML_AGENT_GIT_PASS}
+      CLEARML_AGENT_UPDATE_VERSION: ${CLEARML_AGENT_UPDATE_VERSION:-==1.9.2}
+#      CLEARML_AGENT_DEFAULT_BASE_DOCKER: "ubuntu:18.04"
+      CLEARML_AGENT_DEFAULT_BASE_DOCKER: "python:3.11.13-slim-bookworm"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-}
+      AZURE_STORAGE_KEY: ${AZURE_STORAGE_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      CLEARML_WORKER_ID: "clearml-services"
+      CLEARML_AGENT_DOCKER_HOST_MOUNT: "/opt/clearml/agent:/root/.clearml"
+      SHUTDOWN_IF_NO_ACCESS_KEY: 1
+      CLEARML_CPU_ONLY: 1
+      CLEARML_AGENT_EXTRA_DOCKER_ARGS: "--network=docker_backend -e CLEARML_API_ACCESS_KEY=${CLEARML_AGENT_ACCESS_KEY} -e CLEARML_API_SECRET_KEY=${CLEARML_AGENT_SECRET_KEY} -e CLEARML_API_HOST=${CLEARML_API_HOST}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - clearml_agent:/root/.clearml
+    depends_on:
+      - apiserver
+    entrypoint: >
+      bash -c "curl --retry 10 --retry-delay 10 --retry-connrefused 'http://apiserver:8008/debug.ping' && /usr/agent/entrypoint.sh"
+
+networks:
+  frontend:
+    driver: bridge
+# https://stackoverflow.com/questions/65655382/clearml-server-ip-address-not-used-with-localhost-and-ssh-port-forwarding
+#  driver_opts:
+#    com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
+  backend:
+     driver: bridge
+#  driver_opts:
+#    com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
+
+
+volumes:
+  logs:
+    name: clearml_logs
+  data_fileserver:
+    name: clearml_data_fileserver
+  data_redis:
+    name: clearml_data_redis
+  data_elastic_7:
+    name: clearml_data_elastic_7
+  mongo_db:
+    name: clearml_mongo_db
+  mongo_configdb:
+    name: clearml_mongo_configdb
+  clearml_agent:
+    name: clearml_clearml_agent
+  grafana_data:
+    name: clearml_grafana_data

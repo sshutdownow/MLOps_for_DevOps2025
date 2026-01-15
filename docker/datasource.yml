@@ -6,3 +6,11 @@ datasources:
     # Access mode - proxy (server in the UI) or direct (browser in the UI).
     access: proxy
     url: http://clearml-serving-prometheus:9090
+    isDefault: true
+
+  - name: Alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://clearml-serving-alertmanager:9093
+    jsonData:
+      implementation: prometheus

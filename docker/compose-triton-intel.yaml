@@ -140,7 +140,6 @@ services:
     networks:
       - clearml-serving-backend
 
-
 networks:
   clearml-serving-backend:
     driver: bridge
