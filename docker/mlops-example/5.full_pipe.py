@@ -47,7 +47,7 @@ pipe.add_parameter(
 
 pipe.add_step(
     name="data_prepare",
-    base_task_id="06a132f36d18461e82d32c8b18922b26",
+    base_task_id="fa8db60263df44138b5a9734ae98d592",
     parameter_override={
         "Args/dataset_name": "${pipeline.dataset_name}",
         "Args/dataset_project": "${pipeline.dataset_project}",
@@ -56,12 +56,12 @@ pipe.add_step(
         "Args/test_size": "${pipeline.test_size}",
     },
     cache_executed_step=True,
-    execution_queue="default",
+    execution_queue="services",
 )
 
 pipe.add_step(
     name="fit_model",
-    base_task_id="06a132f36d18461e82d32c8b18922b26",
+    base_task_id="e9b228850d0548af81e4658fa773089e",
     parameter_override={
         "General/dataset_name": "${pipeline.dataset_name}",
         "General/dataset_project": "${pipeline.dataset_project}",
@@ -74,8 +74,8 @@ pipe.add_step(
     },
     parents=["data_prepare"],
     cache_executed_step=True,
-    execution_queue="default",
+    execution_queue="services",
 )
 
 
-pipe.start_locally()
+pipe.start()

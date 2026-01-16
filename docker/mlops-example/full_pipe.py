@@ -1,10 +1,18 @@
+import sys
+import os
 from clearml import PipelineController
-from mlops_example.preprocessing import (
+
+# Insert the 'folder' path into sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'mlops_example'))
+
+
+from preprocessing import (
     dataframe_preprocessing,
     lemmatize,
     text_preprocessing,
 )
-from mlops_example.visualisation import class_distribution
+
+from visualisation import class_distribution
 
 pipe = PipelineController(
     name="DataPrepare",
@@ -228,4 +236,5 @@ pipe.add_function_step(
     ],
 )
 
+#pipe.start_locally("services")
 pipe.start("services")
