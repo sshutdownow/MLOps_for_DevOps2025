@@ -4,3 +4,4 @@
 /train.npy
 /val.npy
 /test.npy
+processed/*.parquet

@@ -34,11 +34,13 @@ train_dataset = Dataset.get(
     dataset_name=args["dataset_name"],
     dataset_project=args["dataset_project"],
     dataset_version=args["train_dataset_version"],
+    alias=args["dataset_name"]
 )
 test_dataset = Dataset.get(
     dataset_name=args["dataset_name"],
     dataset_project=args["dataset_project"],
     dataset_version=args["test_dataset_version"],
+    alias=args["dataset_name"]
 )
 dataset = Dataset.create(
     dataset_name=args["dataset_name"],
