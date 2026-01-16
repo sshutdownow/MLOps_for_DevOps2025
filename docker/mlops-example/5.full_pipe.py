@@ -1,10 +1,25 @@
+import sys
+import os
+
 from clearml import PipelineController
+
+# Insert the 'folder' path into sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'mlops_example'))
+
+from preprocessing import (
+    dataframe_preprocessing,
+    lemmatize,
+    text_preprocessing,
+)
+
+from visualisation import class_distribution
+
 
 pipe = PipelineController(
     name="FullPipeline",
     project="Amazon reviews",
-    version="0.0.1",
-    packages=["./mlops-example"],
+    version="0.0.2",
+#    packages=["./mlops-example"],
     docker="python:3.11.13-slim-bookworm",
     enable_local_imports=True,
     # working_dir="./mlops-example",
