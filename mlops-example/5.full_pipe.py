@@ -1,10 +1,23 @@
 from clearml import PipelineController
 
+import sys
+import os
+# Insert the 'folder' path into sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'mlops_example'))
+
+from preprocessing import (
+    dataframe_preprocessing,
+    lemmatize,
+    text_preprocessing,
+)
+
+from visualisation import class_distribution
+
 pipe = PipelineController(
     name="FullPipeline",
     project="Amazon reviews",
-    version="0.0.1",
-    packages=["./mlops-example"],
+    version="0.0.2",
+#    packages=["./mlops-example"],
     docker="python:3.11.13-slim-bookworm",
     enable_local_imports=True,
     # working_dir="./mlops-example",
@@ -47,7 +60,7 @@ pipe.add_parameter(
 
 pipe.add_step(
     name="data_prepare",
-    base_task_id="1ecd1cacb1db4f40a362a67d629fe14f",
+    base_task_id="fa8db60263df44138b5a9734ae98d592",
     parameter_override={
         "Args/dataset_name": "${pipeline.dataset_name}",
         "Args/dataset_project": "${pipeline.dataset_project}",
@@ -56,12 +69,12 @@ pipe.add_step(
         "Args/test_size": "${pipeline.test_size}",
     },
     cache_executed_step=True,
-    execution_queue="default",
+    execution_queue="services",
 )
 
 pipe.add_step(
     name="fit_model",
-    base_task_id="b5217b5ef85e4e4aa630c672f8177973",
+    base_task_id="e9b228850d0548af81e4658fa773089e",
     parameter_override={
         "General/dataset_name": "${pipeline.dataset_name}",
         "General/dataset_project": "${pipeline.dataset_project}",
@@ -74,8 +87,9 @@ pipe.add_step(
     },
     parents=["data_prepare"],
     cache_executed_step=True,
-    execution_queue="default",
+    execution_queue="services",
 )
 
 
-pipe.start_locally()
+pipe.start("services")
+#pipe.start_locally("services")

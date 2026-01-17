@@ -47,3 +47,8 @@ docker-compose --env-file /opt/clearml/.env.triton \
 clearml-serving --id "${CLEARML_SERVING_TASK_ID}" model add --engine sklearn --endpoint "sentiment_analyze" --published --project "Amazon reviews" --name "TF-IDF Vectorize BernoulliNB" --preprocess "preprocessing.py"
 clearml-serving --id "${CLEARML_SERVING_TASK_ID}" model auto-update --engine sklearn --endpoint "sentiment_analyze" --published --project "Amazon reviews" --name "TF-IDF Vectorize BernoulliNB" --max-versions 5 --preprocess "preprocessing.py"
 clearml-serving --id "${CLEARML_SERVING_TASK_ID}" model list
+
+pushd streamlit_app
+docker-compose --env-file /opt/clearml/.env.common \
+    -f docker-compose-app.yml up --build -d
+popd
