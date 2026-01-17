@@ -15,11 +15,11 @@ from preprocessing import (
 from visualisation import class_distribution
 
 pipe = PipelineController(
-    name="DataPrepare",
+    name="FullPipeline2",
     project="Amazon reviews",
-    version="0.0.2",
-#    packages=["./mlops_example"],
-    docker="python:3.11.13-slim-bookworm",
+    version="0.0.4",
+    packages=["./mlops_example"],
+    docker="python:3.11-slim-bookworm",
     enable_local_imports=True,
 )
 pipe.add_parameter(
@@ -147,7 +147,7 @@ def dataset_preprocessing(
 
 pipe.add_function_step(
     name="train_test_split",
-    docker="python:3.11.13-slim-bookworm",
+    docker="python:3.11-slim-bookworm",
     function=dataset_train_test_split,
     function_kwargs=dict(
         dataset_name="${pipeline.dataset_name}",
@@ -176,7 +176,7 @@ pipe.add_function_step(
 
 pipe.add_function_step(
     name="train_processing",
-    docker="python:3.11.13-slim-bookworm",
+    docker="python:3.11-slim-bookworm",
     function=dataset_preprocessing,
     function_kwargs=dict(
         dataframe="${train_test_split.raw_train_dataframe}",
@@ -207,7 +207,7 @@ pipe.add_function_step(
 
 pipe.add_function_step(
     name="test_processing",
-    docker="python:3.11.13-slim-bookworm",
+    docker="python:3.11-slim-bookworm",
     function=dataset_preprocessing,
     function_kwargs=dict(
         dataframe="${train_test_split.raw_test_dataframe}",
